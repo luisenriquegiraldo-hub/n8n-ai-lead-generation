@@ -1,0 +1,529 @@
+{
+  "name": "2 - AI Icebreaker Cold Email",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1072,
+        -208
+      ],
+      "id": "4a376884-6da9-4ff1-90ed-be49895e0597",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Lead scrapping control"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -848,
+        -96
+      ],
+      "id": "24590ca7-c9c5-4f91-8b7e-1fef3ace47ba",
+      "name": "Get row(s) in sheet",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "961d7d52-dbbf-49e8-b6fc-031109a23d61",
+              "leftValue": "={{ ['', 'Sin enviar'].includes(String($json.Estado ?? '').trim()) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "7f2c9a1e-4b6d-4f3a-9c2e-8d1a5b6c7e9f",
+              "leftValue": "={{ $json.Correo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        -640,
+        -224
+      ],
+      "id": "c7d606db-a05a-48c6-a3ca-ebc6c4ebc122",
+      "name": "Filter"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -416,
+        -192
+      ],
+      "id": "9e02ca8d-74a9-4a53-bf07-a6cc8f50a6b0",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Obtener la URL desde el item actual del loop\nconst item = $input.first();\nlet url = item.json.Web || '';\n\n// Verificar que la URL existe\nif (!url || typeof url !== 'string' || url.trim() === '') {\n  return [{ json: { error: 'URL no válida', original: url } }];\n}\n\n// Limpiar espacios en blanco\nurl = url.trim();\n\n// Asegurar que tiene protocolo\nif (!url.match(/^https?:\\/\\//i)) {\n  url = 'https://' + url;\n}\n\n// Cambiar http:// a https://\nurl = url.replace(/^http:\\/\\//i, 'https://');\n\n// Eliminar www. si existe\nurl = url.replace(/^(https:\\/\\/)www\\./i, '$1');\n\n// Asegurar que termine con /\nif (!url.endsWith('/')) {\n  url += '/';\n}\n\n// Retornar en formato correcto\nreturn [{\n  json: {\n    cleanUrl: url,\n    originalUrl: item.json.Web\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        -64
+      ],
+      "id": "a9cfbb23-b879-412f-916e-a0c2c9cd00d0",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.cleanUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Accept-Language",
+              "value": "es-ES,es;q=0.9,en;q=0.8"
+            },
+            {
+              "name": "Accept",
+              "value": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {
+              "maxRedirects": 3
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        80,
+        -176
+      ],
+      "id": "127dc4f0-e3fc-4141-a9a8-2019d00cfdf0",
+      "name": "Extraer URLs de empresas",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Obtener HTML de múltiples posibles ubicaciones\nconst input = $input.first().json;\nlet html = '';\n\n// Prioridad: htmlContent del mapeo, o data legacy, o el JSON directo si es string\nif (input.htmlContent && typeof input.htmlContent === 'string') {\n  html = input.htmlContent;\n} else if (input.data && typeof input.data === 'string') {\n  html = input.data;\n} else if (typeof input === 'string') {\n  html = input;\n}\n\n// Si el HTML está vacío, devolver error informativo\nif (!html || html.trim() === '' || html === '{}' || html === 'undefined') {\n  return [{\n    json: {\n      cleanText: '',\n      coloresPrincipales: [],\n      colorPrimario: '#2563eb',\n      colorSecundario: '#1e40af',\n      colorAccento: '#3b82f6',\n      error: 'No se pudo obtener el HTML de la web',\n      correo: input.correo || '',\n      web: input.web || ''\n    }\n  }];\n}\n\n// === LIMPIEZA DEL TEXTO VISIBLE ===\nconst cleanText = html\n  .replace(/<script[\\s\\S]*?>[\\s\\S]*?<\\/script>/gi, '')\n  .replace(/<style[\\s\\S]*?>[\\s\\S]*?<\\/style>/gi, '')\n  .replace(/<\\/?[^>]+(>|$)/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim()\n  .slice(0, 4000);\n\n// === EXTRACCIÓN DE COLORES ===\nconst coloresEncontrados = new Set();\n\n// 1. Colores HEX (#fff, #ffffff)\nconst hexMatches = html.match(/#([0-9a-fA-F]{3}){1,2}\\b/g) || [];\nhexMatches.forEach(color => coloresEncontrados.add(color.toLowerCase()));\n\n// 2. Colores RGB/RGBA\nconst rgbMatches = html.match(/rgba?\\s*\\(\\s*\\d{1,3}\\s*,\\s*\\d{1,3}\\s*,\\s*\\d{1,3}(?:\\s*,\\s*[\\d.]+)?\\s*\\)/gi) || [];\nrgbMatches.forEach(rgb => {\n  const match = rgb.match(/(\\d{1,3})\\s*,\\s*(\\d{1,3})\\s*,\\s*(\\d{1,3})/);\n  if (match) {\n    const hex = '#' + [match[1], match[2], match[3]]\n      .map(x => parseInt(x).toString(16).padStart(2, '0'))\n      .join('');\n    coloresEncontrados.add(hex.toLowerCase());\n  }\n});\n\n// 3. Colores de CSS inline (style=\"...color:...\")\nconst styleMatches = html.match(/(?:background-color|color|border-color)\\s*:\\s*([^;\"']+)/gi) || [];\nstyleMatches.forEach(styleMatch => {\n  const colorValue = styleMatch.split(':')[1]?.trim() || '';\n  if (colorValue.startsWith('#')) {\n    coloresEncontrados.add(colorValue.toLowerCase());\n  } else if (colorValue.startsWith('rgb')) {\n    const rgbMatch = colorValue.match(/(\\d{1,3})\\s*,\\s*(\\d{1,3})\\s*,\\s*(\\d{1,3})/);\n    if (rgbMatch) {\n      const hex = '#' + [rgbMatch[1], rgbMatch[2], rgbMatch[3]]\n        .map(x => parseInt(x).toString(16).padStart(2, '0'))\n        .join('');\n      coloresEncontrados.add(hex.toLowerCase());\n    }\n  }\n});\n\n// Filtrar colores muy claros (blancos) y muy oscuros (negros)\nconst coloresUtiles = Array.from(coloresEncontrados).filter(color => {\n  if (!color.startsWith('#') || color.length < 4) return false;\n  let hex = color.slice(1);\n  if (hex.length === 3) {\n    hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];\n  }\n  const r = parseInt(hex.slice(0, 2), 16);\n  const g = parseInt(hex.slice(2, 4), 16);\n  const b = parseInt(hex.slice(4, 6), 16);\n  const brightness = (r * 299 + g * 587 + b * 114) / 1000;\n  return brightness > 30 && brightness < 240;\n});\n\n// Seleccionar colores principales (máximo 5)\nconst coloresPrincipales = coloresUtiles.slice(0, 5);\n\n// Asignar roles a los colores\nconst colorPrimario = coloresPrincipales[0] || '#2563eb';\nconst colorSecundario = coloresPrincipales[1] || '#1e40af';\nconst colorAccento = coloresPrincipales[2] || '#3b82f6';\n\nreturn [{\n  json: {\n    cleanText: cleanText,\n    coloresPrincipales: coloresPrincipales,\n    colorPrimario: colorPrimario,\n    colorSecundario: colorSecundario,\n    colorAccento: colorAccento,\n    correo: input.correo || '',\n    web: input.web || ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        -160
+      ],
+      "id": "7de600e5-1e4b-47e7-b94e-b5b1bd2ad757",
+      "name": "Limpiar código + Colores"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Lead scrapping control"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Correo Icebreaker": "={{ $('Agente creador de Email - Message a model').item.json.output[0].content[0].text.ASUNTO }}",
+            "Web": "={{ $('Mapeo correo - Edit Fields').item.json.web }}",
+            "Estado": "Enviado",
+            "Fecha envio": "={{ $now.setZone('America/Bogota').toFormat('yyyy-MM-dd') }}"
+          },
+          "matchingColumns": [
+            "Web"
+          ],
+          "schema": [
+            {
+              "id": "Web",
+              "displayName": "Web",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Correo",
+              "displayName": "Correo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Correo Icebreaker",
+              "displayName": "Correo Icebreaker",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Estado",
+              "displayName": "Estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Fecha envio",
+              "displayName": "Fecha envio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Seguimiento",
+              "displayName": "Seguimiento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1392,
+        16
+      ],
+      "id": "6021a8af-f2dc-4949-bbc7-262054a60896",
+      "name": "Append or update row in sheet",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b9dcb807-e839-47b4-99c5-0bb5df43a9df",
+              "name": "correo",
+              "value": "=  {{ $('Loop Over Items').item.json.Correo }}",
+              "type": "string"
+            },
+            {
+              "id": "749feaae-742a-4635-9ea0-573b015c93dd",
+              "name": "web",
+              "value": "={{ $('Loop Over Items').item.json.Web }}",
+              "type": "string"
+            },
+            {
+              "id": "64f563d6-27ab-4006-936d-2e96e120d0d2",
+              "name": "htmlContent",
+              "value": "={{ typeof $json === 'string' ? $json : JSON.stringify($json) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        320,
+        -128
+      ],
+      "id": "86c768ba-d350-45f1-afff-7d52788d4898",
+      "name": "Mapeo correo - Edit Fields"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=### DATOS DEL PROSPECTO\n\n**Información de su negocio (extraída de su web):**\n{{ $json.cleanText }}\n\n**Colores de su marca (SOLO para diseño del email):**\n- Primario: {{ $json.colorPrimario }}\n- Secundario: {{ $json.colorSecundario }}"
+            },
+            {
+              "role": "system",
+              "content": "Eres un experto en redactar correos de prospección en frío para pequeños negocios de Colombia. Escribes como una persona real que le escribe a un negocio que no conoce: corto, claro, respetuoso y honesto.\n\n## QUÉ OFRECEMOS (solo esto)\nLuis Enrique Giraldo (Digitrion, Cali) construyó un sistema de citas por WhatsApp: los clientes del negocio agendan, cambian o cancelan su cita solos por WhatsApp, a cualquier hora, sin que nadie del equipo tenga que contestar. Cuando preguntan precios u horarios, la inteligencia artificial responde con los datos reales del negocio, y el negocio lo controla todo desde un panel.\nPrueba real (la ÚNICA que puedes citar): ya funciona con dos peluquerías.\nVideo del sistema funcionando (menos de 2 minutos): https://youtu.be/IYjyg2zrTPc\n\n## ESTRUCTURA DEL CUERPO (máximo 110 palabras sin contar la firma, cinco párrafos cortos)\n1. Saludo: \"Hola, buenos días.\" Si en la web aparece claramente el nombre del dueño o del profesional, usa \"Hola, [nombre], buenos días.\"\n2. Gancho: \"Vi en su página que en [nombre del negocio] [un detalle específico y verificable de su web: sus servicios, su especialidad, que atienden con cita, su sede].\" Este detalle es la prueba de que no es un envío masivo: nunca lo omitas ni lo inventes.\n3. Propuesta: \"Le escribo porque construí un sistema con el que los clientes de una peluquería agendan, cambian o cancelan su cita solos por WhatsApp, a cualquier hora, sin que nadie del equipo tenga que contestar. Ya funciona con dos peluquerías.\" Si el negocio NO es peluquería, barbería, spa ni centro de estética (por ejemplo, consultorio, clínica dental o fisioterapia), agrega una frase corta como \"Funcionaría igual para sus pacientes.\" El caso real sigue siendo el de las dos peluquerías: no lo cambies.\n4. Video: \"Aquí puede verlo funcionando (menos de 2 minutos): \" seguido del enlace https://youtu.be/IYjyg2zrTPc\n5. Cierre: \"Si le parece útil para [nombre del negocio], con gusto le muestro cómo quedaría con sus servicios y horarios. Y si no es el momento, no hay problema.\"\nLuego va la firma.\n\nSi no encuentras con claridad el nombre del negocio, usa \"su negocio\".\n\n## ASUNTO\n\"Citas por WhatsApp para [nombre del negocio]\" (máximo 60 caracteres; si el nombre es muy largo, acórtalo de forma natural). Sin signos de exclamación ni emojis.\n\n## TONO\n- Siempre de usted, en español de Colombia. Nunca tutees y nunca uses \"vosotros\", \"os\" ni formas de España.\n- Sin relleno (\"Espero que se encuentre bien\", \"Me permito escribirle\").\n- Sin urgencia ni presión, sin signos de exclamación, sin mayúsculas sostenidas.\n\n## PROHIBIDO\n- Decir que has ayudado a otros negocios, clínicas o sectores, o inventar clientes, cifras, porcentajes o resultados. Lo único verificable es: funciona con dos peluquerías.\n- Ofrecer otros servicios (desarrollo web, CRM, facturación, etc.) o hablar de precios.\n- Hablar de los colores o del diseño de su web.\n- Pedir una llamada o reunión de entrada: solo se invita a ver el video y a responder el correo.\n\n## DISEÑO (HTML sencillo, que parezca un correo escrito a mano)\n- Un div contenedor con style=\"font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:15px;line-height:1.6;color:#222222;\"\n- Cada párrafo en <p style=\"margin:0 0 14px 0;\">\n- Sin negritas, sin botones, sin bordes de color, sin imágenes ni logo en el cuerpo.\n- El enlace del video como un enlace normal: <a href=\"https://youtu.be/IYjyg2zrTPc\" style=\"color:#0b57d0;\">https://youtu.be/IYjyg2zrTPc</a>\n- Al final del cuerpo, dentro del mismo div, la firma.\n\n## FIRMA (obligatoria, inclúyela EXACTAMENTE así; no cambies ningún dato)\n<div style=\"margin-top:24px;padding-top:20px;border-top:1px solid #e5e7eb;\">\n<p style=\"margin:0 0 4px 0;font-size:15px;color:#374151;\">Un saludo,</p>\n<p style=\"margin:0 0 4px 0;font-size:17px;font-weight:bold;color:#111827;\">Luis Enrique Giraldo C.</p>\n<p style=\"margin:0 0 14px 0;font-size:14px;color:#4b5563;\">Equipo Digitrion · Automatización e IA para negocios</p>\n<p style=\"margin:0 0 4px 0;font-size:14px;color:#4b5563;\">Web: <a href=\"https://digitrion.com\" style=\"color:#0b57d0;font-weight:bold;text-decoration:none;\">digitrion.com</a></p>\n<p style=\"margin:0 0 4px 0;font-size:14px;color:#4b5563;\">Tel / WhatsApp: <strong>+57 300 000 0000</strong></p>\n<p style=\"margin:0 0 16px 0;font-size:14px;color:#4b5563;\">Correo: you@yourdomain.com</p>\n<img src=\"https://wsrv.nl/?url=digitrion.com/logo.webp&output=png&bg=000000\" alt=\"Digitrion\" style=\"height:28px;width:auto;display:block;margin-bottom:12px;\" />\n<p style=\"margin:0;font-size:12px;color:#9ca3af;\">¿Prefiere verificar antes de responder? Búsquenos como \"Digitrion\" en Google o entre directo a digitrion.com.</p>\n</div>\n\n## FORMATO DE SALIDA (JSON)\n```json\n{\n  \"ASUNTO\": \"[asunto]\",\n  \"HTML\": \"[correo completo en HTML con estilos inline, incluida la firma]\"\n}\n```"
+            }
+          ]
+        },
+        "builtInTools": {
+          "codeInterpreter": true
+        },
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        -144
+      ],
+      "id": "5a4b1f9c-92ba-41a2-a6f4-806005092882",
+      "name": "Agente creador de Email - Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "you@yourdomain.com",
+        "toEmail": "={{ $('Mapeo correo - Edit Fields').item.json.correo }}",
+        "subject": "={{ $json.output[0].content[0].text.ASUNTO }}",
+        "html": "={{ $json.output[0].content[0].text.HTML }}",
+        "options": {
+          "appendAttribution": false,
+          "bccEmail": "you@yourdomain.com"
+        }
+      },
+      "id": "c4d5e6f7-8a9b-4c1d-9e2f-3a4b5c6d7e8f",
+      "name": "Enviar Email (SMTP Hostinger)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1296,
+        -304
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "",
+          "name": "SMTP account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Extraer URLs de empresas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer URLs de empresas": {
+      "main": [
+        [
+          {
+            "node": "Mapeo correo - Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpiar código + Colores": {
+      "main": [
+        [
+          {
+            "node": "Agente creador de Email - Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append or update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mapeo correo - Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Limpiar código + Colores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente creador de Email - Message a model": {
+      "main": [
+        [
+          {
+            "node": "Enviar Email (SMTP Hostinger)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Email (SMTP Hostinger)": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

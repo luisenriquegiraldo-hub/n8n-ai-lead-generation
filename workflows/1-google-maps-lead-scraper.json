@@ -1,0 +1,749 @@
+{
+  "name": "1 - Google Maps Lead Scraper",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1632,
+        -208
+      ],
+      "id": "e1fef694-a46e-4353-aa95-8fb470b1c67b",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c94dc53e-d0d2-4faf-8b73-e2156a7d638b",
+              "name": "maps_url",
+              "value": "=  https://www.google.com/maps/search/{{ encodeURIComponent($json.niche + ' ' + $json.city) }}?hl=es&gl=es&region=es",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -560,
+        -192
+      ],
+      "id": "10e392c6-5013-4273-b045-8b189aff7f11",
+      "name": "Construir URL"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://places.googleapis.com/v1/places:searchText",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Goog-FieldMask",
+              "value": "places.websiteUri"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"textQuery\": \"{{ $('Elegir nicho y ciudad al azar').item.json.niche }} en {{ $('Elegir nicho y ciudad al azar').item.json.city }}\"\n  }",
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "redirect": {
+            "redirect": {
+              "maxRedirects": 2
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -288,
+        -192
+      ],
+      "id": "162e35a3-64b6-4758-b36f-e9e6960a1da2",
+      "name": "Scrapeo Google Maps1 - HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Google Places API Key (header X-Goog-Api-Key)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "body.places",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -1584,
+        80
+      ],
+      "id": "e9bbdc77-cd0d-43a9-bf91-53d8abaae773",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1408,
+        176
+      ],
+      "id": "a065e5fd-ab98-4954-bf95-5324a7ac34cd",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const original = item.json.websiteUri || '';\n  const cleaned = original.replace(/^https?:\\/\\/(www\\.)?/i, 'https://');\n  return {\n    json: {\n      ...item.json,\n      websiteUri: cleaned\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -864,
+        64
+      ],
+      "id": "9b6d097d-af22-4401-90b9-c9b7949eafd8",
+      "name": "Limpiamos Web - Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "compare": "selectedFields",
+        "fieldsToCompare": "websiteUri",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        -608,
+        112
+      ],
+      "id": "2d4b486c-80b6-4fae-a608-c3ccb99d5440",
+      "name": "Deduplicar URLs - Remove Duplicates"
+    },
+    {
+      "parameters": {
+        "amount": 1
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -400,
+        112
+      ],
+      "id": "3cebf8e8-751f-425c-90e0-8afc50055c40",
+      "name": "Wait"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.websiteUri }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Accept-Language",
+              "value": "es-ES,es;q=0.9,en;q=0.8"
+            },
+            {
+              "name": "Accept",
+              "value": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {
+              "maxRedirects": 3
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -176,
+        112
+      ],
+      "id": "3abbfab4-83b3-4a78-be45-2be5a605f063",
+      "name": "Scrapeo de páginas - HTTP Request",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 0.5
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        32,
+        112
+      ],
+      "id": "9b7cdfd5-0d12-4348-9e85-33e296c9430c",
+      "name": "Wait1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = ($input.first().json.data || '').toString();\n\n// Regex mejorada para emails\nconst regex = /\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b/gi;\nconst matches = input.match(regex) || [];\n\n// Prefijos genéricos a excluir (ampliado)\nconst filtrosBloqueo = [\n  'info', 'contact', 'admin', 'support', 'noreply', 'no-reply',\n  'ventas', 'marketing', 'hello', 'service', 'help', 'mail', \n  'email', 'contacto', 'reservas', 'hola', 'webmaster', 'root',\n  'postmaster', 'hostmaster', 'abuse', 'newsletter', 'suscribe',\n  // agregados 4 nov: direcciones de ejemplo y buzones que no son del dueño\n  'ejemplo', 'example', 'usuario', 'tuemail', 'tucorreo', 'lineaetica', 'pqr',\n  'notificacion', 'facturacion', 'rrhh', 'talentohumano', 'hojasdevida', 'empleo', 'nomina', 'judicial'\n];\n\n// Dominios técnicos/falsos a excluir\nconst dominiosBloqueo = [\n  'example.com', 'ejemplo.com', 'test.com', 'domain.com', 'email.com',\n  'sentry.io', 'wixpress.com', 'mailchimp.com', 'sendgrid.net',\n  // agregados 4 nov: dominios de plantillas web\n  'mysite.com', 'misitio.com', 'dominio.com', 'tudominio.com', 'yourdomain.com', 'sitio.com', 'company.com'\n];\n\n// Extensiones de archivo (falsos positivos)\nconst extensionesBloqueo = ['.jpg', '.png', '.gif', '.webp', '.svg', '.css', '.js'];\n\n// Filtrar emails\nconst emails = matches.filter(email => {\n  const lower = email.toLowerCase();\n  const user = lower.split('@')[0];\n  const domain = lower.split('@')[1];\n  \n  // Excluir prefijos genéricos\n  if (filtrosBloqueo.some(b => user.includes(b))) return false;\n  \n  // Excluir dominios técnicos\n  if (dominiosBloqueo.some(d => domain.includes(d))) return false;\n  \n  // Excluir extensiones de archivo\n  if (extensionesBloqueo.some(ext => lower.includes(ext))) return false;\n  \n  // Excluir emails con caracteres extraños seguidos\n  if (/[._-]{2,}/.test(user)) return false;\n  \n  return true;\n});\n\n// Eliminar duplicados\nconst uniqueEmails = [...new Set(emails)];\n\nif (uniqueEmails.length === 0) {\n  return [{ json: { email: '' } }];\n}\n\nreturn [{ json: { email: uniqueEmails[0].toLowerCase() } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        112
+      ],
+      "id": "646f74d9-2b22-4d88-a7e0-0670e44df38f",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b67401a3-3c2d-4978-971a-bbe677746078",
+              "leftValue": "={{ $json.email }}",
+              "rightValue": "={{ $json.email }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "1178e699-4614-43c3-83b7-20a7cb240502",
+              "leftValue": "={{ $json.email }}",
+              "rightValue": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        112
+      ],
+      "id": "a913de95-3b56-490f-a13f-a3cd0b7025b3",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        688,
+        -80
+      ],
+      "id": "7c0eecb6-c34d-4fbd-83a8-2214a1a5191a",
+      "name": "Remove Duplicates"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Lead scrapping control"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Correo": "={{ $json.email }}",
+            "Web": "={{ $('Loop Over Items').item.json.websiteUri }}"
+          },
+          "matchingColumns": [
+            "Correo"
+          ],
+          "schema": [
+            {
+              "id": "Web",
+              "displayName": "Web",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Correo",
+              "displayName": "Correo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Correo Icebreaker",
+              "displayName": "Correo Icebreaker",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Estado",
+              "displayName": "Estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        864,
+        240
+      ],
+      "id": "43d54dac-28ab-4da1-a66b-da430719efbc",
+      "name": "Google Sheets - Append or update row in sheet",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id",
+          "cachedResultName": "Lead scrapping control"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 547747577,
+          "mode": "list",
+          "cachedResultName": "Config "
+        },
+        "options": {}
+      },
+      "id": "c1a2b3c4-d5e6-4f70-8a9b-0c1d2e3f4a5b",
+      "name": "Leer Config",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1408,
+        -192
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(item => item.json);\nconst nichos = [...new Set(rows.map(r => (r.Nicho || '').trim()).filter(Boolean))];\nconst ciudades = [...new Set(rows.map(r => (r.Ciudad || '').trim()).filter(Boolean))];\n\nif (nichos.length === 0 || ciudades.length === 0) {\n  throw new Error('La pestaña Config debe tener al menos un valor en la columna Nicho y en la columna Ciudad');\n}\n\nconst niche = nichos[Math.floor(Math.random() * nichos.length)];\nconst city = ciudades[Math.floor(Math.random() * ciudades.length)];\n\nreturn [{\n  json: {\n    niche,\n    city,\n    original: `Búscame ${niche} en ${city}.`\n  }\n}];"
+      },
+      "id": "e2b3c4d5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+      "name": "Elegir nicho y ciudad al azar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1104,
+        -192
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 3,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "f1a2b3c4-1111-4222-8333-444455556666",
+              "leftValue": "={{ $json.websiteUri }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "c52cd9dd-1db1-482d-97c6-f3c4f47ff29d",
+              "leftValue": "={{ $json.websiteUri }}",
+              "rightValue": "schema",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "6e0467ff-3889-42e6-8f78-d8cf783b2c5e",
+              "leftValue": "={{ $json.websiteUri }}",
+              "rightValue": "google",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "7876c4b6-0fa5-4b0f-a4f2-906ff8f4d2b7",
+              "leftValue": "={{ $json.websiteUri }}",
+              "rightValue": "gstatic",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "10a6fbc9-cb57-4176-9de9-d40e15a8e1a3",
+              "leftValue": "={{ $json.websiteUri }}",
+              "rightValue": "whatsapp",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "d45f0f0d-27b6-4b9b-b743-b5343736c381",
+              "leftValue": "={{ $json.websiteUri }}",
+              "rightValue": "youtube",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "56107478-d6c1-48f0-900d-a4ba68b0278f",
+              "leftValue": "={{ $json.websiteUri }}",
+              "rightValue": "facebook",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "227bd435-9edf-404e-9253-b18526dbee36",
+              "leftValue": "={{ $json.websiteUri }}",
+              "rightValue": "wa.me",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "36d58937-fbb2-459e-998b-2ae85950ae49",
+              "leftValue": "={{ $json.websiteUri }}",
+              "rightValue": "instagram",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "1218b7dd-2d2b-4067-bd2b-7038bbbc1309",
+              "leftValue": "={{ $json.websiteUri }}",
+              "rightValue": "twitter",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "40e28dd7-88e5-4651-9c89-0fa9b2c7ddf1",
+              "leftValue": "={{ $json.websiteUri }}",
+              "rightValue": "linkedin",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b3f1c2d4-7a8e-4b1a-9c3d-2e5f6a7b8c9d",
+      "name": "Filtro de sitio válido",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1104,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Leer Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir URL": {
+      "main": [
+        [
+          {
+            "node": "Scrapeo Google Maps1 - HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrapeo Google Maps1 - HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Filtro de sitio válido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpiamos Web - Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Deduplicar URLs - Remove Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplicar URLs - Remove Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Scrapeo de páginas - HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrapeo de páginas - HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Remove Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Append or update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer Config": {
+      "main": [
+        [
+          {
+            "node": "Elegir nicho y ciudad al azar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elegir nicho y ciudad al azar": {
+      "main": [
+        [
+          {
+            "node": "Construir URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro de sitio válido": {
+      "main": [
+        [
+          {
+            "node": "Limpiamos Web - Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
