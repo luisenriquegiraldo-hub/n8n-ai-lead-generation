@@ -26,13 +26,24 @@ Business name and recipient blurred.
 - Google Sheets as the control panel: niches and cities editable without touching n8n
 - Website scraping with browser-like headers
 - Email validation and deduplication
-- Anti-spam copy rules, real signature, 130-word limit
+- Anti-spam copy rules, real signature, 110-word limit
 - Own SMTP from the company domain
 - Fault tolerance: one failed send never stops the run
 
 ## Import
 
-The workflow JSON files are in [`workflows/`](workflows/). In n8n: **Workflows → Import from file**, then connect your own credentials (Google Sheets, Google Places API key, OpenAI, SMTP). No credentials are included.
+The workflow JSON files are in [`workflows/`](workflows/):
+
+| File | Nodes | Runs |
+|---|---|---|
+| [`1-google-maps-lead-scraper.json`](workflows/1-google-maps-lead-scraper.json) | 17 | Daily, 7 AM |
+| [`2-ai-icebreaker-cold-email.json`](workflows/2-ai-icebreaker-cold-email.json) | 11 | Daily, 8 AM |
+
+In n8n: **Workflows → Import from file**, then:
+
+1. Connect your own credentials: Google Sheets, Google Places API key (header `X-Goog-Api-Key`), OpenAI and SMTP. **No credentials are included.**
+2. Replace `YOUR_GOOGLE_SHEET_ID` with your sheet. It needs a `Config` tab (columns `Nicho`, `Ciudad`) and a leads tab (columns `Web`, `Correo`, `Correo Icebreaker`, `Estado`, `Fecha envio`).
+3. Set your sender address (`you@yourdomain.com`) and edit the signature and offer in the system prompt of the email node. The prompt is in Spanish because the prospects are in Colombia.
 
 ## Stack
 
